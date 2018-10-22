@@ -50,6 +50,7 @@
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
+    <Reference Include="System.IO.Compression" />
     <Reference Include="System.IO.Compression.FileSystem" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
@@ -128,6 +129,7 @@
   <ItemGroup>
     <Compile Include="Data\CustomSong.cs" />
     <Compile Include="Data\DifficultyLevels.cs" />
+    <Compile Include="Helpers\FilesystemHelper.cs" />
     <Compile Include="Services\BeatSaverService.cs" />
     <Compile Include="Services\IBeatSaverService.cs" />
     <Compile Include="Plugin.cs" />
@@ -135,6 +137,7 @@
     <Compile Include="Services\ISongLoadingService.cs" />
     <Compile Include="Services\SongLoadingService.cs" />
     <Compile Include="UI\AcceptRejectInterfaceManager.cs" />
+    <Compile Include="UI\StatusMessageManager.cs" />
     <Compile Include="UI\TryEverythingHost.cs" />
     <Compile Include="UI\UnityTaskEnumerator.cs" />
   </ItemGroup>

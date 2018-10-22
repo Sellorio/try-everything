@@ -3,8 +3,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Threading.Tasks;
 using TryEverything.Data;
+using TryEverything.Helpers;
 using TryEverything.Services;
 using UnityEngine;
 
@@ -25,9 +25,9 @@ namespace TryEverything.UI
         private readonly List<string> _ignoredAuthors;
         private readonly List<string> _rejectedSongs;
         private readonly List<string> _pendingSongs;
-        private readonly object _lock = new object();
 
-        //private bool _hasPendingSongRefresh;
+        public bool IsDownloadingSongs { get; private set; }
+        public bool HasPendingSongRefresh { get; private set; }
 
         static TryEverythingHost()
         {
@@ -55,7 +55,7 @@ namespace TryEverything.UI
             // only including songs that are still in the CustomSongs folder (were not removed outside of this plugin)
             _pendingSongs =
                 File.Exists(PendingSongsFilename)
-                    ? File.ReadAllLines(PendingSongsFilename).Where(x => Directory.Exists(Path.Combine(BeatSaberPath, "CustomSongs", x))).ToList()
+                    ? File.ReadAllLines(PendingSongsFilename).Where(x => Directory.Exists(Path.Combine(BeatSaberPath, "CustomSongs", FilesystemHelper.SanitiseForPath(x)))).ToList()
                     : new List<string>();
         }
 
@@ -67,60 +67,102 @@ namespace TryEverything.UI
             }
         }
 
+        public void Awake()
+        {
+            DontDestroyOnLoad(gameObject);
+        }
+
         public void Update()
         {
-            //if (_hasPendingSongRefresh)
-            //{
-            //    SongLoader.Instance.RefreshSongs(false);
-            //}
+            if (HasPendingSongRefresh && SongLoader.Instance != null)
+            {
+                Console.WriteLine("[Plugins/TryEverything] Attempting to refresh songs list...");
+                HasPendingSongRefresh = false;
+                SongLoader.Instance.RefreshSongs(true);
+                Console.WriteLine("[Plugins/TryEverything] Songs list refreshed.");
+            }
         }
 
         public bool IsPendingSong(CustomSong song)
         {
             if (song != null)
             {
-                lock (_lock)
-                {
-                    return _pendingSongs.Contains(song.Id);
-                }
+                return _pendingSongs.Contains(song.Title);
             }
 
             return false;
         }
 
-        public void AcceptSong(CustomSong song)
+        public bool AcceptSong(CustomSong song)
         {
-            lock (_lock)
+            var result = false;
+
+            if (_pendingSongs.Contains(song.Title))
             {
-                if (_pendingSongs.Contains(song.Id))
-                {
-                    _pendingSongs.Remove(song.Id);
-                    File.WriteAllLines(PendingSongsFilename, _pendingSongs);
-                }
+                _pendingSongs.Remove(song.Title);
+                File.WriteAllLines(PendingSongsFilename, _pendingSongs);
+                result = true;
             }
+
+            return result;
         }
 
-        public void RejectSong(CustomSong song)
+        public bool RejectSong(string title)
         {
-            lock (_lock)
+            var result = false;
+
+            if (_pendingSongs.Contains(title))
             {
-                if (_pendingSongs.Contains(song.Id))
+                if (!_rejectedSongs.Contains(title))
                 {
-                    if (!_rejectedSongs.Contains(song.Id))
-                    {
-                        _rejectedSongs.Add(song.Id);
-                        File.WriteAllLines(RejectedSongsFilename, _rejectedSongs);
-                    }
-
-                    if (Directory.Exists(Path.Combine(BeatSaberPath, "CustomSongs", song.Title)))
-                    {
-                        Directory.Delete(Path.Combine(BeatSaberPath, "CustomSongs", song.Title));
-                    }
-
-                    _pendingSongs.Remove(song.Id);
-                    File.WriteAllLines(PendingSongsFilename, _pendingSongs);
+                    _rejectedSongs.Add(title);
+                    File.WriteAllLines(RejectedSongsFilename, _rejectedSongs);
                 }
+
+                var songPath = Path.Combine(BeatSaberPath, "CustomSongs", FilesystemHelper.SanitiseForPath(title));
+
+                if (Directory.Exists(songPath))
+                {
+                    Directory.Delete(songPath, true);
+                }
+
+                _pendingSongs.Remove(title);
+                File.WriteAllLines(PendingSongsFilename, _pendingSongs);
+
+                result = true;
             }
+
+            return result;
+        }
+
+        public bool RejectSong(CustomSong song)
+        {
+            return RejectSong(song?.Title);
+        }
+
+        public bool IgnoreAuthor(CustomSong song)
+        {
+            var result = false;
+
+            if (!_ignoredAuthors.Contains(song.AuthorName))
+            {
+                _ignoredAuthors.Add(song.AuthorName);
+                File.WriteAllLines(IgnoredAuthorsFilename, _ignoredAuthors);
+
+                var songPath = Path.Combine(BeatSaberPath, "CustomSongs", FilesystemHelper.SanitiseForPath(song.Title));
+
+                if (Directory.Exists(songPath))
+                {
+                    Directory.Delete(songPath, true);
+                }
+
+                _pendingSongs.Remove(song.Title);
+                File.WriteAllLines(PendingSongsFilename, _pendingSongs);
+
+                result = true;
+            }
+
+            return result;
         }
 
         /// <summary>
@@ -129,13 +171,13 @@ namespace TryEverything.UI
         /// </summary>
         public System.Collections.IEnumerator GetSongBatch()
         {
-            Console.WriteLine("[Plugins/TryEverything] Checking what songs need to be downloaded...");
-
             var songPage = 1;
             var songsToDownload = new List<CustomSong>();
 
             while (_pendingSongs.Count < 5)
             {
+                IsDownloadingSongs = true;
+
                 IEnumerable<CustomSong> songs = null;
 
                 foreach (var yield in _beatSaverService.GetSongs(songPage))
@@ -143,23 +185,20 @@ namespace TryEverything.UI
                     songs = yield;
                     yield return null;
                 }
-
-                lock (_lock)
+                
+                foreach (var song in songs)
                 {
-                    foreach (var song in songs)
+                    if (!_ignoredAuthors.Contains(song.AuthorName)
+                        && !_rejectedSongs.Contains(song.Title)
+                        && !_pendingSongs.Contains(song.Title)
+                        && !Directory.Exists(Path.Combine(BeatSaberPath, "CustomSongs", FilesystemHelper.SanitiseForPath(song.Title)))) // not manually downloaded before
                     {
-                        if (!_ignoredAuthors.Contains(song.AuthorName)
-                            && !_rejectedSongs.Contains(song.Id)
-                            && !_pendingSongs.Contains(song.Id)
-                            && !Directory.Exists(Path.Combine(BeatSaberPath, "CustomSongs", song.Title))) // not manually downloaded before
-                        {
-                            _pendingSongs.Add(song.Id);
-                            songsToDownload.Add(song);
+                        _pendingSongs.Add(song.Title);
+                        songsToDownload.Add(song);
 
-                            if (_pendingSongs.Count == MaximumPendingSongs)
-                            {
-                                break;
-                            }
+                        if (_pendingSongs.Count == MaximumPendingSongs)
+                        {
+                            break;
                         }
                     }
                 }
@@ -175,16 +214,13 @@ namespace TryEverything.UI
                 {
                     yield return _beatSaverService.DownloadSong(song);
                 }
+                
+                File.WriteAllLines(PendingSongsFilename, _pendingSongs);
 
-                lock (_lock)
-                {
-                    File.WriteAllLines(PendingSongsFilename, _pendingSongs);
-                }
-
-                Console.WriteLine("[Plugins/TryEverything] Refreshing songs after GetSongBatchInternal completed...");
-                SongLoader.Instance.RefreshSongs(false);
-                Console.WriteLine("[Plugins/TryEverything] Songs refreshed.");
+                HasPendingSongRefresh = true;
             }
+
+            IsDownloadingSongs = false;
         }
     }
 }

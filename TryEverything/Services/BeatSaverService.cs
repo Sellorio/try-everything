@@ -5,8 +5,10 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Net;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using TryEverything.Data;
+using TryEverything.Helpers;
 using UnityEngine.Networking;
 
 namespace TryEverything.Services
@@ -42,7 +44,69 @@ namespace TryEverything.Services
 
             Console.WriteLine("[Plugins/TryEverything] Sond download complete: " + song.Title + ".");
 
-            ZipFile.ExtractToDirectory(downloadFilename, Path.Combine(_beatSaberPath, "CustomSongs"));
+            // if the song author didn't put a song folder as the root of the zip file then we need to do that ourselves.
+            bool needSubFolder = false;
+            // if the zip is corrupted then try downloading again.
+            bool tryAgain = false;
+
+            try
+            {
+                using (var archive = ZipFile.OpenRead(downloadFilename))
+                {
+                    needSubFolder = archive.Entries.Any(x => !x.FullName.Contains(Path.DirectorySeparatorChar));
+                }
+            }
+            catch (InvalidDataException ex)
+            {
+                if (ex.Message == "End of Central Directory record could not be found.") // corrupt zip file, try downloading again
+                {
+                    tryAgain = true;
+                }
+                else
+                {
+                    Plugin.Log(ex.ToString());
+                    yield break;
+                }
+            }
+
+            if (tryAgain)
+            {
+                File.Delete(downloadFilename);
+
+                request = UnityWebRequest.Get(song.DownloadUri);
+                async = request.SendWebRequest();
+
+                while (!async.isDone)
+                {
+                    yield return null;
+                }
+
+                data = request.downloadHandler.data;
+                File.WriteAllBytes(downloadFilename, data);
+
+                try
+                {
+                    using (var archive = ZipFile.OpenRead(downloadFilename))
+                    {
+                        needSubFolder = archive.Entries.Any(x => !x.FullName.Contains(Path.DirectorySeparatorChar));
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Plugin.Log(ex.ToString());
+                    yield break;
+                }
+            }
+
+            var extractToPath = Path.Combine(_beatSaberPath, "CustomSongs");
+
+            if (needSubFolder)
+            {
+                extractToPath = Path.Combine(extractToPath, FilesystemHelper.SanitiseForPath(song.Title));
+                Directory.CreateDirectory(extractToPath);
+            }
+
+            ZipFile.ExtractToDirectory(downloadFilename, extractToPath);
             Directory.Delete(Path.GetDirectoryName(downloadFilename), true);
         }
 

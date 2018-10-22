@@ -10,7 +10,7 @@ namespace TryEverything
     {
         private const int MainMenuIndex = 1;
 
-        public string Name => "TryEverything";
+        public string Name => "Try Everything!";
         public string Version => "0.0.1";
 
         internal static TryEverythingHost HostInstance { get; private set; }
@@ -23,23 +23,6 @@ namespace TryEverything
 
         private void SceneManagerOnActiveSceneChanged(Scene arg0, Scene arg1)
         {
-            try
-            {
-                if (arg1.buildIndex == MainMenuIndex && HostInstance == null)
-                {
-                    var hostGameObject = new GameObject("TryEverythingHost")
-                    {
-                        isStatic = true
-                    };
-
-                    HostInstance = hostGameObject.AddComponent<TryEverythingHost>();
-                    hostGameObject.AddComponent<AcceptRejectInterfaceManager>();
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("[Plugins/TryEverything] " + ex.ToString());
-            }
         }
 
         private void SceneManager_sceneLoaded(Scene arg0, LoadSceneMode arg1)
@@ -59,6 +42,21 @@ namespace TryEverything
 
         public void OnLevelWasInitialized(int level)
         {
+            try
+            {
+                if (level == MainMenuIndex && HostInstance == null)
+                {
+                    var hostGameObject = new GameObject("TryEverythingHost");
+
+                    HostInstance = hostGameObject.AddComponent<TryEverythingHost>();
+                    hostGameObject.AddComponent<AcceptRejectInterfaceManager>();
+                    hostGameObject.AddComponent<StatusMessageManager>();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("[Plugins/TryEverything] " + ex.ToString());
+            }
         }
 
         public void OnUpdate()
@@ -67,6 +65,11 @@ namespace TryEverything
 
         public void OnFixedUpdate()
         {
+        }
+
+        public static void Log(string message)
+        {
+            Console.WriteLine("[Plugins/TryEverything] " + message);
         }
     }
 }
