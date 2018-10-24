@@ -1,0 +1,6 @@
+﻿- Delete button on songs should mark pending songs as rejected
+
+- Only store 1000 songs in the rejected list to avoid performance issues in the future
+- Extract song file in a separate thread (since this causes a micro freeze when in main-thread)
+- Only download next song after user leaves the menu (i.e. starts playing a different song). This will solve the issue of the songs list getting out of sync while the user is looking through it.
+- Add button to open song in beastsaber for reviewing.

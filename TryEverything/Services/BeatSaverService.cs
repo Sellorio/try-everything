@@ -6,6 +6,7 @@ using System.IO.Compression;
 using System.Linq;
 using System.Net;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 using TryEverything.Data;
 using TryEverything.Helpers;
@@ -42,7 +43,7 @@ namespace TryEverything.Services
             var data = request.downloadHandler.data;
             File.WriteAllBytes(downloadFilename, data);
 
-            Console.WriteLine("[Plugins/TryEverything] Sond download complete: " + song.Title + ".");
+            Console.WriteLine("[Plugins/TryEverything] Sond download complete: " + song.Title + " mapped by " + song.AuthorName + ".");
 
             // if the song author didn't put a song folder as the root of the zip file then we need to do that ourselves.
             bool needSubFolder = false;
@@ -106,8 +107,32 @@ namespace TryEverything.Services
                 Directory.CreateDirectory(extractToPath);
             }
 
-            ZipFile.ExtractToDirectory(downloadFilename, extractToPath);
-            Directory.Delete(Path.GetDirectoryName(downloadFilename), true);
+            Plugin.Log("Starting new thread to unzip song data...");
+
+            var ioCompletedSemaphore = new SemaphoreSlim(0);
+            
+            new Thread(
+                () =>
+                {
+                    try
+                    {
+                        ZipFile.ExtractToDirectory(downloadFilename, extractToPath);
+                        Directory.Delete(Path.GetDirectoryName(downloadFilename), true);
+                    }
+                    catch (Exception ex)
+                    {
+                        Plugin.Log("Failed to extract song data: " + ex.ToString());
+                    }
+
+                    ioCompletedSemaphore.Release();
+                }).Start();
+
+            while (ioCompletedSemaphore.CurrentCount == 0)
+            {
+                yield return null;
+            }
+
+            Plugin.Log("Song extracted and ready to go!");
         }
 
         public IEnumerable<CustomSong> GetSongFromLevel(string levelId)
@@ -160,6 +185,7 @@ namespace TryEverything.Services
 
                 result.Add(
                     new CustomSong(
+                        songs[songIndex]["id"],
                         songs[songIndex]["key"],
                         songs[songIndex]["songName"],
                         songs[songIndex]["songSubName"],

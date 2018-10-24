@@ -26,8 +26,7 @@ namespace TryEverything.UI
         private readonly List<string> _rejectedSongs;
         private readonly List<string> _pendingSongs;
 
-        public bool IsDownloadingSongs { get; private set; }
-        public bool HasPendingSongRefresh { get; private set; }
+        public HostStatus Status { get; private set; }
 
         static TryEverythingHost()
         {
@@ -63,7 +62,7 @@ namespace TryEverything.UI
         {
             if (_pendingSongs.Count < 5)
             {
-                StartCoroutine(GetSongBatch());
+                StartCoroutine(GetSongBatch(false));
             }
         }
 
@@ -74,10 +73,11 @@ namespace TryEverything.UI
 
         public void Update()
         {
-            if (HasPendingSongRefresh && SongLoader.Instance != null)
+            // Song Loader does not work (refresh songs) if not in the main menu
+            if (Status == HostStatus.Refreshing && SongLoader.Instance != null && Resources.FindObjectsOfTypeAll<MainMenuViewController>().Any())
             {
                 Console.WriteLine("[Plugins/TryEverything] Attempting to refresh songs list...");
-                HasPendingSongRefresh = false;
+                Status = HostStatus.Idle;
                 SongLoader.Instance.RefreshSongs(true);
                 Console.WriteLine("[Plugins/TryEverything] Songs list refreshed.");
             }
@@ -116,6 +116,12 @@ namespace TryEverything.UI
                 if (!_rejectedSongs.Contains(title))
                 {
                     _rejectedSongs.Add(title);
+
+                    if (_rejectedSongs.Count > 1000)
+                    {
+                        _rejectedSongs.RemoveAt(0);
+                    }
+
                     File.WriteAllLines(RejectedSongsFilename, _rejectedSongs);
                 }
 
@@ -144,7 +150,12 @@ namespace TryEverything.UI
         {
             var result = false;
 
-            if (!_ignoredAuthors.Contains(song.AuthorName))
+            if (_ignoredAuthors.Contains(song.AuthorName))
+            {
+                // return true if the author is already ignored (in case we already had 2 songs by him downloaded and we tried to ignore him both times)
+                result = true;
+            }
+            else
             {
                 _ignoredAuthors.Add(song.AuthorName);
                 File.WriteAllLines(IgnoredAuthorsFilename, _ignoredAuthors);
@@ -169,14 +180,21 @@ namespace TryEverything.UI
         /// Loads new songs until the number of pending songs is <see cref="MaximumPendingSongs"/> and then
         /// refreshes the song loader.
         /// </summary>
-        public System.Collections.IEnumerator GetSongBatch()
+        /// <param name="waitForUserToStartAnotherSong">Whether or not to wait until the main menu is gone before starting the downloads.</param>
+        public System.Collections.IEnumerator GetSongBatch(bool waitForUserToStartAnotherSong)
         {
             var songPage = 1;
             var songsToDownload = new List<CustomSong>();
 
+            if (waitForUserToStartAnotherSong)
+            {
+                Status = HostStatus.Waiting;
+                yield return new WaitUntil(() => !Resources.FindObjectsOfTypeAll<MainMenuViewController>().Any());
+            }
+
             while (_pendingSongs.Count < 5)
             {
-                IsDownloadingSongs = true;
+                Status = HostStatus.Downloading;
 
                 IEnumerable<CustomSong> songs = null;
 
@@ -214,13 +232,15 @@ namespace TryEverything.UI
                 {
                     yield return _beatSaverService.DownloadSong(song);
                 }
-                
+
                 File.WriteAllLines(PendingSongsFilename, _pendingSongs);
 
-                HasPendingSongRefresh = true;
+                Status = HostStatus.Refreshing;
             }
-
-            IsDownloadingSongs = false;
+            else
+            {
+                Status = HostStatus.Idle;
+            }
         }
     }
 }

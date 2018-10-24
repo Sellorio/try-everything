@@ -1,9 +1,11 @@
 ﻿using SongLoaderPlugin;
 using System;
 using System.Collections;
+using System.Diagnostics;
 using System.Linq;
 using TMPro;
 using TryEverything.Data;
+using TryEverything.Helpers;
 using TryEverything.Services;
 using UnityEngine;
 using UnityEngine.Events;
@@ -36,6 +38,8 @@ namespace TryEverything.UI
 
             while (true)
             {
+                yield return new WaitUntil(() => !Resources.FindObjectsOfTypeAll<ResultsViewController>().Any()); // wait until the results view is gone
+
                 Plugin.Log("Waiting for results view controller.");
 
                 yield return new WaitUntil(() => Resources.FindObjectsOfTypeAll<ResultsViewController>().Any(x => x.difficultyLevel != null));
@@ -44,106 +48,141 @@ namespace TryEverything.UI
 
                 var resultsView = Resources.FindObjectsOfTypeAll<ResultsViewController>().FirstOrDefault(x => x.difficultyLevel != null);
 
-                if (resultsView == null || resultsView.difficultyLevel == null)
-                {
-                    continue;
-                }
-
                 song = null;
 
                 var levelId = resultsView.difficultyLevel.level.levelID;
 
-                Plugin.Log("Completed level: " + levelId + ".");
+                Plugin.Log("Level Id is " + levelId + ".");
 
                 if (levelId.Length > 32)
                 {
-                    Plugin.Log("Retrieving song details for level.");
+                    Button acceptButton = null;
+                    Button rejectButton = null;
+                    Button blacklistMapperButton = null;
+                    Button openInBeastsaberButton = null;
 
-                    foreach (var yield in _beatSaverService.GetSongFromLevel(levelId))
+                    acceptButton =
+                        CreateButton(
+                            resultsView.rectTransform,
+                            "TryEverythingAcceptButton",
+                            () =>
+                            {
+                                AcceptSong(song);
+                                acceptButton.interactable = false;
+                                rejectButton.gameObject.SetActive(false);
+                                blacklistMapperButton.gameObject.SetActive(false);
+                            },
+                            "Keep");
+
+
+                    rejectButton =
+                        CreateButton(
+                            resultsView.rectTransform,
+                            "TryEverythingRejectButton",
+                            () =>
+                            {
+                                RejectSong(song);
+                                acceptButton.gameObject.SetActive(false);
+                                rejectButton.interactable = false;
+                                blacklistMapperButton.gameObject.SetActive(false);
+                            },
+                            "Reject");
+
+
+                    blacklistMapperButton =
+                        CreateButton(
+                            resultsView.rectTransform,
+                            "TryEverythingRejectButton",
+                            () =>
+                            {
+                                BlacklistMapper(song);
+                                acceptButton.gameObject.SetActive(false);
+                                rejectButton.gameObject.SetActive(false);
+                                blacklistMapperButton.interactable = false;
+                            },
+                            "Blacklist Mapper");
+
+
+                    openInBeastsaberButton =
+                        CreateButton(
+                            resultsView.rectTransform,
+                            "TryEverythingBeastsaberButton",
+                            () =>
+                            {
+                                try
+                                {
+                                    Process.Start($"https://bsaber.com/songs/{song.Number}/");
+                                }
+                                catch (Exception ex)
+                                {
+                                    Plugin.Log("Failed to open BeastSaber: " + ex.ToString());
+                                }
+
+                                openInBeastsaberButton.interactable = false;
+                                openInBeastsaberButton.SetText("Done! Check your browser.");
+                                StartCoroutine(RestoreOpenInBeastSaberButton(openInBeastsaberButton));
+                            },
+                            "Open In BSaber");
+
+                    ((RectTransform)acceptButton.transform).anchoredPosition = new Vector2(-125f, 31f);
+                    ((RectTransform)rejectButton.transform).anchoredPosition = new Vector2(-125f, 20f);
+                    ((RectTransform)blacklistMapperButton.transform).anchoredPosition = new Vector2(-125f, 9f);
+                    ((RectTransform)openInBeastsaberButton.transform).anchoredPosition = new Vector2(-125f, 43f);
+
+                    acceptButton.SetText("Checking Song Status...");
+                    acceptButton.interactable = false;
+
+                    rejectButton.gameObject.SetActive(false);
+                    blacklistMapperButton.gameObject.SetActive(false);
+
+                    System.Collections.Generic.IEnumerable<CustomSong> getSongFromLevelEnumerator;
+
+                    try
+                    {
+                        getSongFromLevelEnumerator = _beatSaverService.GetSongFromLevel(levelId);
+                    }
+                    catch (Exception ex)
+                    {
+                        Plugin.Log(ex.ToString());
+                        continue;
+                    }
+
+                    foreach (var yield in getSongFromLevelEnumerator)
                     {
                         song = yield;
                         yield return null;
                     }
 
-                    if (song == null) // songs that no longer exist on beatsaver are auto rejected - sorry!
-                    {
-                        var songTitle = levelId.Substring(33);
-                        songTitle = songTitle.Substring(0, songTitle.IndexOf("∎"));
+                    Plugin.Log("Retrieved song details for " + song.Title + " mapped by " + song.AuthorName + ".");
 
-                        if (Plugin.HostInstance.RejectSong(songTitle))
+                    if (song == null || !Plugin.HostInstance.IsPendingSong(song))
+                    {
+                        acceptButton.gameObject.SetActive(false);
+
+                        var songTitle = levelId.Substring(33);
+                        var indexOfSeparator = songTitle.IndexOf("∎");
+
+                        if (indexOfSeparator != -1)
                         {
-                            StartCoroutine(Plugin.HostInstance.GetSongBatch());
-                            SongLoader.Instance.RemoveSongWithLevelID(levelId);
+                            songTitle = songTitle.Substring(0, indexOfSeparator);
+
+                            if (Plugin.HostInstance.RejectSong(songTitle))
+                            {
+                                StartCoroutine(Plugin.HostInstance.GetSongBatch(true));
+                                SongLoader.Instance.RemoveSongWithLevelID(levelId);
+                            }
                         }
                     }
-                    else if (Plugin.HostInstance.IsPendingSong(song))
+                    else
                     {
-                        try
-                        {
-                            CreateButtons(resultsView, song);
-                            Plugin.Log("Buttons created.");
-                        }
-                        catch (Exception ex)
-                        {
-                            Plugin.Log(ex.ToString());
-                        }
+                        acceptButton.SetText("Keep");
+                        acceptButton.interactable = true;
+
+                        rejectButton.gameObject.SetActive(true);
+                        blacklistMapperButton.gameObject.SetActive(true);
                     }
                 }
-
-                yield return new WaitUntil(() => !Resources.FindObjectsOfTypeAll<ResultsViewController>().Any()); // wait until the results view is gone
             }
-        }
-
-        private void CreateButtons(ResultsViewController resultsView, CustomSong song)
-        {
-            Button acceptButton = null;
-            Button rejectButton = null;
-            Button blacklistMapperButton = null;
-
-            acceptButton =
-                CreateButton(
-                    resultsView.rectTransform,
-                    "TryEverythingAcceptButton",
-                    () =>
-                    {
-                        AcceptSong(song);
-                        acceptButton.interactable = false;
-                        Destroy(rejectButton);
-                        Destroy(blacklistMapperButton);
-                    },
-                    "Keep");
-
-
-            rejectButton =
-                CreateButton(
-                    resultsView.rectTransform,
-                    "TryEverythingRejectButton",
-                    () =>
-                    {
-                        RejectSong(song);
-                        Destroy(acceptButton);
-                        rejectButton.interactable = false;
-                        Destroy(blacklistMapperButton);
-                    },
-                    "Reject");
-
-
-            blacklistMapperButton =
-                CreateButton(
-                    resultsView.rectTransform,
-                    "TryEverythingRejectButton",
-                    () =>
-                    {
-                        BlacklistMapper(song);
-                        Destroy(acceptButton);
-                        Destroy(rejectButton);
-                        blacklistMapperButton.interactable = false;
-                    },
-                    "Blacklist Mapper");
-
-            ((RectTransform)acceptButton.transform).anchoredPosition = new Vector2(-125f, 36f);
-            ((RectTransform)rejectButton.transform).anchoredPosition = new Vector2(-125f, 23f);
-            ((RectTransform)blacklistMapperButton.transform).anchoredPosition = new Vector2(-125f, 10f);
         }
 
         private void AcceptSong(CustomSong song)
@@ -152,7 +191,7 @@ namespace TryEverything.UI
             {
                 if (Plugin.HostInstance.AcceptSong(song))
                 {
-                    StartCoroutine(Plugin.HostInstance.GetSongBatch());
+                    StartCoroutine(Plugin.HostInstance.GetSongBatch(true));
                 }
             }
             catch (Exception ex)
@@ -167,7 +206,7 @@ namespace TryEverything.UI
             {
                 if (Plugin.HostInstance.RejectSong(song))
                 {
-                    StartCoroutine(Plugin.HostInstance.GetSongBatch());
+                    StartCoroutine(Plugin.HostInstance.GetSongBatch(true));
                     SongLoader.Instance.RemoveSongWithLevelID(Resources.FindObjectsOfTypeAll<ResultsViewController>().First().difficultyLevel.level.levelID);
                 }
             }
@@ -183,7 +222,7 @@ namespace TryEverything.UI
             {
                 if (Plugin.HostInstance.IgnoreAuthor(song))
                 {
-                    StartCoroutine(Plugin.HostInstance.GetSongBatch());
+                    StartCoroutine(Plugin.HostInstance.GetSongBatch(true));
                     SongLoader.Instance.RemoveSongWithLevelID(Resources.FindObjectsOfTypeAll<ResultsViewController>().First().difficultyLevel.level.levelID);
                 }
             }
@@ -191,6 +230,13 @@ namespace TryEverything.UI
             {
                 Plugin.Log(ex.ToString());
             }
+        }
+
+        private IEnumerator RestoreOpenInBeastSaberButton(Button button)
+        {
+            yield return new WaitForSeconds(5);
+            button.interactable = true;
+            button.SetText("Open In BSaber");
         }
 
         private Button CreateButton(RectTransform parent, string name, UnityAction onClick, string text)
@@ -203,12 +249,7 @@ namespace TryEverything.UI
 
             if (text != null)
             {
-                var textComponent = button.GetComponentInChildren<TextMeshProUGUI>();
-
-                if (textComponent != null)
-                {
-                    textComponent.text = text;
-                }
+                button.SetText(text);
             }
 
             return button;

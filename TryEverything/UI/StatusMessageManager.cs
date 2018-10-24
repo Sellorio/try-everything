@@ -82,17 +82,19 @@ namespace TryEverything.UI
 
         private static string GetStatusText()
         {
-            if (Plugin.HostInstance.IsDownloadingSongs)
+            switch (Plugin.HostInstance.Status)
             {
-                return "Downloading next batch of songs...";
-            }
-            else if (Plugin.HostInstance.HasPendingSongRefresh)
-            {
-                return "Refreshing songs list...";
-            }
-            else
-            {
-                return null;
+                case HostStatus.Downloading:
+                    return "Downloading songs for you to try...";
+                case HostStatus.Idle:
+                    return null;
+                case HostStatus.Refreshing:
+                    return "Refreshing songs list...";
+                case HostStatus.Waiting:
+                    return "Next song will download while you play";
+                default:
+                    Plugin.Log("Unexpected host status encountered: " + Plugin.HostInstance.Status + ".");
+                    return null;
             }
         }
     }

@@ -4,6 +4,7 @@ namespace TryEverything.Data
 {
     class CustomSong
     {
+        public string Number { get; }
         public string Id { get; }
         public string Title { get; } // songName
         public string SubTitle { get; } // songSubName
@@ -16,6 +17,7 @@ namespace TryEverything.Data
         public DifficultyLevels DifficultyLevels { get; }
 
         public CustomSong(
+            string number,
             string id,
             string title,
             string subTitle,
@@ -27,6 +29,7 @@ namespace TryEverything.Data
             Uri artUri,
             DifficultyLevels difficultyLevels)
         {
+            Number = number;
             Id = id;
             Title = title;
             SubTitle = subTitle;
