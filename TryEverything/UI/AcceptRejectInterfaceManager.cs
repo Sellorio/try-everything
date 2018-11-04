@@ -50,7 +50,7 @@ namespace TryEverything.UI
 
                 song = null;
 
-                var levelId = resultsView.difficultyLevel.level.levelID;
+                var levelId = resultsView.difficultyLevel.level?.levelID ?? string.Empty;
 
                 Plugin.Log("Level Id is " + levelId + ".");
 
@@ -147,39 +147,58 @@ namespace TryEverything.UI
                         continue;
                     }
 
-                    foreach (var yield in getSongFromLevelEnumerator)
+                    var enumerator = getSongFromLevelEnumerator.GetEnumerator();
+
+                    while (song == null)
                     {
-                        song = yield;
                         yield return null;
+
+                        try
+                        {
+                            enumerator.MoveNext();
+                            song = enumerator.Current;
+                        }
+                        catch (Exception ex)
+                        {
+                            Plugin.Log(ex.ToString());
+                            break;
+                        }
                     }
 
                     Plugin.Log("Retrieved song details for " + song.Title + " mapped by " + song.AuthorName + ".");
 
-                    if (song == null || !Plugin.HostInstance.IsPendingSong(song))
+                    try
                     {
-                        acceptButton.gameObject.SetActive(false);
-
-                        var songTitle = levelId.Substring(33);
-                        var indexOfSeparator = songTitle.IndexOf("∎");
-
-                        if (indexOfSeparator != -1)
+                        if (song == null || !Plugin.HostInstance.IsPendingSong(song.Title))
                         {
-                            songTitle = songTitle.Substring(0, indexOfSeparator);
+                            acceptButton.gameObject.SetActive(false);
 
-                            if (Plugin.HostInstance.RejectSong(songTitle))
+                            var songTitle = levelId.Substring(33);
+                            var indexOfSeparator = songTitle.IndexOf("∎");
+
+                            if (indexOfSeparator != -1)
                             {
-                                StartCoroutine(Plugin.HostInstance.GetSongBatch(true));
-                                SongLoader.Instance.RemoveSongWithLevelID(levelId);
+                                songTitle = songTitle.Substring(0, indexOfSeparator);
+
+                                if (Plugin.HostInstance.RejectSong(songTitle))
+                                {
+                                    StartCoroutine(Plugin.HostInstance.GetSongBatch(true));
+                                    SongLoader.Instance.RemoveSongWithLevelID(levelId);
+                                }
                             }
                         }
-                    }
-                    else
-                    {
-                        acceptButton.SetText("Keep");
-                        acceptButton.interactable = true;
+                        else
+                        {
+                            acceptButton.SetText("Keep");
+                            acceptButton.interactable = true;
 
-                        rejectButton.gameObject.SetActive(true);
-                        blacklistMapperButton.gameObject.SetActive(true);
+                            rejectButton.gameObject.SetActive(true);
+                            blacklistMapperButton.gameObject.SetActive(true);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Plugin.Log(ex.ToString());
                     }
                 }
             }

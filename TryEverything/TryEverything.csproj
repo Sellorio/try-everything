@@ -139,6 +139,7 @@
     <Compile Include="Services\SongLoadingService.cs" />
     <Compile Include="UI\AcceptRejectInterfaceManager.cs" />
     <Compile Include="UI\HostStatus.cs" />
+    <Compile Include="UI\PendingReviewInterfaceManager.cs" />
     <Compile Include="UI\StatusMessageManager.cs" />
     <Compile Include="UI\TryEverythingHost.cs" />
     <Compile Include="UI\UnityTaskEnumerator.cs" />

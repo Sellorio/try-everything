@@ -43,7 +43,7 @@ namespace TryEverything.Services
             var data = request.downloadHandler.data;
             File.WriteAllBytes(downloadFilename, data);
 
-            Console.WriteLine("[Plugins/TryEverything] Sond download complete: " + song.Title + " mapped by " + song.AuthorName + ".");
+            Plugin.Log("Sond download complete: " + song.Title + " mapped by " + song.AuthorName + ".");
 
             // if the song author didn't put a song folder as the root of the zip file then we need to do that ourselves.
             bool needSubFolder = false;
@@ -145,7 +145,7 @@ namespace TryEverything.Services
                 yield return null;
             }
 
-            var json = request.downloadHandler.text;
+            var json = request.downloadHandler?.text;
 
             yield return JsonToCustomSongs(json).FirstOrDefault();
         }
@@ -167,6 +167,11 @@ namespace TryEverything.Services
 
         private static List<CustomSong> JsonToCustomSongs(string json)
         {
+            if (json == null)
+            {
+                return new List<CustomSong>();
+            }
+
             var songs = JSON.Parse(json)["songs"];
             var result = new List<CustomSong>();
 

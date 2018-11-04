@@ -83,11 +83,11 @@ namespace TryEverything.UI
             }
         }
 
-        public bool IsPendingSong(CustomSong song)
+        public bool IsPendingSong(string songTitle)
         {
-            if (song != null)
+            if (songTitle != null)
             {
-                return _pendingSongs.Contains(song.Title);
+                return _pendingSongs.Contains(songTitle);
             }
 
             return false;
@@ -209,7 +209,8 @@ namespace TryEverything.UI
                     if (!_ignoredAuthors.Contains(song.AuthorName)
                         && !_rejectedSongs.Contains(song.Title)
                         && !_pendingSongs.Contains(song.Title)
-                        && !Directory.Exists(Path.Combine(BeatSaberPath, "CustomSongs", FilesystemHelper.SanitiseForPath(song.Title)))) // not manually downloaded before
+                        && !Directory.Exists(Path.Combine(BeatSaberPath, "CustomSongs", FilesystemHelper.SanitiseForPath(song.Title)))
+                        && Plugin.DifficultiesSetting.Any(x => GetIncludedDifficulties(song.DifficultyLevels).Contains(x)))
                     {
                         _pendingSongs.Add(song.Title);
                         songsToDownload.Add(song);
@@ -224,7 +225,7 @@ namespace TryEverything.UI
                 songPage++;
             }
 
-            Console.WriteLine("[Plugins/TryEverything] Downloading " + songsToDownload.Count + " songs...");
+            Plugin.Log("Downloading " + songsToDownload.Count + " songs...");
 
             if (songsToDownload.Count > 0)
             {
@@ -241,6 +242,16 @@ namespace TryEverything.UI
             {
                 Status = HostStatus.Idle;
             }
+        }
+
+        private static string[] GetIncludedDifficulties(DifficultyLevels difficultyLevels)
+        {
+            return
+                Enum.GetValues(typeof(DifficultyLevels))
+                    .Cast<DifficultyLevels>()
+                    .Where(x => (x & difficultyLevels) != 0)
+                    .Select(x => x.ToString())
+                    .ToArray();
         }
     }
 }

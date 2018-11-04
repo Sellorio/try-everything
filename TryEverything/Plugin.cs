@@ -10,9 +10,12 @@ namespace TryEverything
     {
         private const int MainMenuIndex = 1;
 
+        private static GameObject _hostGameObject;
+
         public string Name => "Try Everything!";
         public string Version => "0.0.1";
 
+        internal static string[] DifficultiesSetting { get; } = ModPrefs.GetString("TryEverything", "Difficulties", "Easy,Normal,Hard,Expert,ExpertPlus", true).Split(',');
         internal static TryEverythingHost HostInstance { get; private set; }
 
         public void OnApplicationStart()
@@ -46,16 +49,17 @@ namespace TryEverything
             {
                 if (level == MainMenuIndex && HostInstance == null)
                 {
-                    var hostGameObject = new GameObject("TryEverythingHost");
+                    _hostGameObject = new GameObject("TryEverythingHost");
 
-                    HostInstance = hostGameObject.AddComponent<TryEverythingHost>();
-                    hostGameObject.AddComponent<AcceptRejectInterfaceManager>();
-                    hostGameObject.AddComponent<StatusMessageManager>();
+                    HostInstance = _hostGameObject.AddComponent<TryEverythingHost>();
+                    _hostGameObject.AddComponent<AcceptRejectInterfaceManager>();
+                    _hostGameObject.AddComponent<StatusMessageManager>();
+                    _hostGameObject.AddComponent<PendingReviewInterfaceManager>();
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine("[Plugins/TryEverything] " + ex.ToString());
+                Log(ex.ToString());
             }
         }
 
