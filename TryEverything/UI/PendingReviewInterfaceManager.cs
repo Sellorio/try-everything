@@ -27,14 +27,12 @@ namespace TryEverything.UI
                     var mainMenuViewController = Resources.FindObjectsOfTypeAll<MainMenuViewController>().First();
                     var mainMenuRectTransform = mainMenuViewController.transform as RectTransform;
 
-                    var standardLevelSelectionFlowCoordinator = Resources.FindObjectsOfTypeAll<StandardLevelSelectionFlowCoordinator>().First();
+                    var standardLevelListViewController = Resources.FindObjectsOfTypeAll<BeatmapDifficultyViewController>().First();
+                    standardLevelListViewController.didSelectDifficultyEvent += OnSelectLevel;
 
-                    var standardLevelListViewController = ReflectionUtil.GetPrivateField<StandardLevelListViewController>(standardLevelSelectionFlowCoordinator, "_levelListViewController");
-                    standardLevelListViewController.didSelectLevelEvent += OnSelectLevel;
-
-                    if (standardLevelListViewController.selectedLevel != null)
+                    if (standardLevelListViewController.selectedDifficultyBeatmap != null)
                     {
-                        UpdateDetailsUI(standardLevelSelectionFlowCoordinator, standardLevelListViewController.selectedLevel.levelID);
+                        UpdateDetailsUI(standardLevelListViewController.selectedDifficultyBeatmap);
                     }
                 }
                 catch (Exception ex)
@@ -49,39 +47,38 @@ namespace TryEverything.UI
             }
         }
 
-        private void OnSelectLevel(StandardLevelListViewController sender, IStandardLevel selectedLevel)
+        private void OnSelectLevel(BeatmapDifficultyViewController sender, IDifficultyBeatmap selectedDifficulty)
         {
-            var standardLevelSelectionFlowCoordinator = Resources.FindObjectsOfTypeAll<StandardLevelSelectionFlowCoordinator>().First();
-            UpdateDetailsUI(standardLevelSelectionFlowCoordinator, selectedLevel.levelID);
+            UpdateDetailsUI(selectedDifficulty);
         }
 
-        private void UpdateDetailsUI(StandardLevelSelectionFlowCoordinator flowCoordinator, string selectedLevel)
+        private void UpdateDetailsUI(IDifficultyBeatmap selectedDifficulty)
         {
             if (_pendingReviewTextControl != null)
             {
                 _pendingReviewTextControl.gameObject.SetActive(false);
             }
             
-            StartCoroutine(HandlePendingReviewAfterResultsScreenClosed(flowCoordinator, selectedLevel));
+            StartCoroutine(HandlePendingReviewAfterResultsScreenClosed(selectedDifficulty));
         }
 
-        private IEnumerator HandlePendingReviewAfterResultsScreenClosed(StandardLevelSelectionFlowCoordinator flowCoordinator, string selectedLevel)
+        private IEnumerator HandlePendingReviewAfterResultsScreenClosed(IDifficultyBeatmap selectedDifficulty)
         {
             yield return new WaitUntil(() => !Resources.FindObjectsOfTypeAll<ResultsViewController>().Any(x => x.isActiveAndEnabled)); // wait until the results view is gone
 
             try
             {
-                var songDetailViewController = ReflectionUtil.GetPrivateField<StandardLevelDetailViewController>(flowCoordinator, "_levelDetailViewController");
+                var songDetailViewController = Resources.FindObjectsOfTypeAll<BeatmapDifficultyViewController>().First();
                 var detailsRectTransform = songDetailViewController.GetComponent<RectTransform>();
 
                 if (_pendingReviewTextControl == null)
                 {
                     var result = new GameObject("TryEverything.PendingReviewMessage", typeof(RectTransform));
-                    result.transform.position = new Vector3(1.35f, 0.95f, 2.395f);
-                    result.transform.eulerAngles = new Vector3(0, 0, -45f);
-                    result.transform.localScale = new Vector3(0.01f, 0.01f, 0.01f);
+                    result.transform.position = new Vector3(1.3f, 0.45f, 2.22f);
+                    result.transform.localScale = new Vector3(0.005f, 0.005f, 0.005f);
 
                     var canvas = result.AddComponent<Canvas>();
+                    canvas.sortingOrder = 99999;
                     canvas.renderMode = RenderMode.WorldSpace;
                     var rectTransform = canvas.transform as RectTransform;
                     rectTransform.sizeDelta = new Vector2(100, 50);
@@ -93,14 +90,14 @@ namespace TryEverything.UI
                     rectTransform.sizeDelta = new Vector2(100, 20);
 
                     _pendingReviewTextControl = textObject.AddComponent<TextMeshProUGUI>();
-                    _pendingReviewTextControl.text = "Pending\n        Review";
+                    _pendingReviewTextControl.text = "Pending Review";
                     _pendingReviewTextControl.fontSize = 20f;
-                    _pendingReviewTextControl.color = new Color(1, 0, 0, 0.2f);
+                    _pendingReviewTextControl.color = new Color(1, 0, 0, 0.6f);
                 }
 
-                if (selectedLevel.Length > 32)
+                if (selectedDifficulty.level.levelID.Length > 32)
                 {
-                    var songTitle = selectedLevel.Substring(33);
+                    var songTitle = selectedDifficulty.level.levelID.Substring(33);
                     songTitle = songTitle.Substring(0, songTitle.IndexOf("∎"));
                     var showText = Plugin.HostInstance.IsPendingSong(songTitle);
 

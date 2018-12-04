@@ -42,15 +42,15 @@ namespace TryEverything.UI
 
                 Plugin.Log("Waiting for results view controller.");
 
-                yield return new WaitUntil(() => Resources.FindObjectsOfTypeAll<ResultsViewController>().Any(x => x.difficultyLevel != null));
+                yield return new WaitUntil(() => Resources.FindObjectsOfTypeAll<ResultsViewController>().Any(x => ReflectionUtil.GetPrivateField<IDifficultyBeatmap>(x, "_difficultyBeatmap") != null));
 
                 Plugin.Log("Found results view controller.");
 
-                var resultsView = Resources.FindObjectsOfTypeAll<ResultsViewController>().FirstOrDefault(x => x.difficultyLevel != null);
+                var resultsView = Resources.FindObjectsOfTypeAll<ResultsViewController>().FirstOrDefault(x => ReflectionUtil.GetPrivateField<IDifficultyBeatmap>(x, "_difficultyBeatmap") != null);
 
                 song = null;
 
-                var levelId = resultsView.difficultyLevel.level?.levelID ?? string.Empty;
+                var levelId = ReflectionUtil.GetPrivateField<IDifficultyBeatmap>(resultsView, "_difficultyBeatmap").level?.levelID ?? string.Empty;
 
                 Plugin.Log("Level Id is " + levelId + ".");
 
@@ -69,8 +69,8 @@ namespace TryEverything.UI
                             {
                                 AcceptSong(song);
                                 acceptButton.interactable = false;
-                                rejectButton.gameObject.SetActive(false);
-                                blacklistMapperButton.gameObject.SetActive(false);
+                                //rejectButton.gameObject.SetActive(false);
+                                //blacklistMapperButton.gameObject.SetActive(false);
                             },
                             "Keep");
 
@@ -82,9 +82,9 @@ namespace TryEverything.UI
                             () =>
                             {
                                 RejectSong(song);
-                                acceptButton.gameObject.SetActive(false);
+                                //acceptButton.gameObject.SetActive(false);
                                 rejectButton.interactable = false;
-                                blacklistMapperButton.gameObject.SetActive(false);
+                                //blacklistMapperButton.gameObject.SetActive(false);
                             },
                             "Reject");
 
@@ -96,8 +96,8 @@ namespace TryEverything.UI
                             () =>
                             {
                                 BlacklistMapper(song);
-                                acceptButton.gameObject.SetActive(false);
-                                rejectButton.gameObject.SetActive(false);
+                                //acceptButton.gameObject.SetActive(false);
+                                //rejectButton.gameObject.SetActive(false);
                                 blacklistMapperButton.interactable = false;
                             },
                             "Blacklist Mapper");
@@ -122,12 +122,12 @@ namespace TryEverything.UI
                                 openInBeastsaberButton.SetText("Done! Check your browser.");
                                 StartCoroutine(RestoreOpenInBeastSaberButton(openInBeastsaberButton));
                             },
-                            "Open In BSaber");
+                            "Open BSaber");
 
-                    ((RectTransform)acceptButton.transform).anchoredPosition = new Vector2(-125f, 31f);
-                    ((RectTransform)rejectButton.transform).anchoredPosition = new Vector2(-125f, 20f);
-                    ((RectTransform)blacklistMapperButton.transform).anchoredPosition = new Vector2(-125f, 9f);
-                    ((RectTransform)openInBeastsaberButton.transform).anchoredPosition = new Vector2(-125f, 43f);
+                    ((RectTransform)acceptButton.transform).localPosition = new Vector2(-57, -34);
+                    ((RectTransform)rejectButton.transform).localPosition = new Vector2(-57, -23);
+                    ((RectTransform)blacklistMapperButton.transform).localPosition = new Vector2(-57, -12);
+                    ((RectTransform)openInBeastsaberButton.transform).localPosition = new Vector2(-57, 9);
 
                     acceptButton.SetText("Checking Song Status...");
                     acceptButton.interactable = false;
@@ -226,7 +226,7 @@ namespace TryEverything.UI
                 if (Plugin.HostInstance.RejectSong(song))
                 {
                     StartCoroutine(Plugin.HostInstance.GetSongBatch(true));
-                    SongLoader.Instance.RemoveSongWithLevelID(Resources.FindObjectsOfTypeAll<ResultsViewController>().First().difficultyLevel.level.levelID);
+                    SongLoader.Instance.RemoveSongWithLevelID(ReflectionUtil.GetPrivateField<IDifficultyBeatmap>(Resources.FindObjectsOfTypeAll<ResultsViewController>().First(), "_difficultyBeatmap").level.levelID);
                 }
             }
             catch (Exception ex)
@@ -242,7 +242,7 @@ namespace TryEverything.UI
                 if (Plugin.HostInstance.IgnoreAuthor(song))
                 {
                     StartCoroutine(Plugin.HostInstance.GetSongBatch(true));
-                    SongLoader.Instance.RemoveSongWithLevelID(Resources.FindObjectsOfTypeAll<ResultsViewController>().First().difficultyLevel.level.levelID);
+                    SongLoader.Instance.RemoveSongWithLevelID(ReflectionUtil.GetPrivateField<IDifficultyBeatmap>(Resources.FindObjectsOfTypeAll<ResultsViewController>().First(), "_difficultyBeatmap").level.levelID);
                 }
             }
             catch (Exception ex)
@@ -260,7 +260,7 @@ namespace TryEverything.UI
 
         private Button CreateButton(RectTransform parent, string name, UnityAction onClick, string text)
         {
-            var button = Instantiate(Resources.FindObjectsOfTypeAll<Button>().Last(x => x.name == "SettingsButton"), parent, false);
+            var button = Instantiate(Resources.FindObjectsOfTypeAll<Button>().First(x => x.name == "ResetButton"), parent, false);
             DestroyImmediate(button.GetComponent<SignalOnUIButtonClick>());
             button.name = name;
             button.onClick = new Button.ButtonClickedEvent();

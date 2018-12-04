@@ -8,7 +8,7 @@ namespace TryEverything
 {
     public class Plugin : IPlugin
     {
-        private const int MainMenuIndex = 1;
+        private const int MainMenuIndex = 0;
 
         private static GameObject _hostGameObject;
 

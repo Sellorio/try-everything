@@ -42,14 +42,10 @@ namespace TryEverything.UI
 
         private static GameObject CreateStatusMessageGameObject(out TextMeshProUGUI text)
         {
-            new Vector3(0, 2.5f, 2.5f);
-            new Vector3(0, 0, 0);
-            new Vector3(0.01f, 0.01f, 0.01f);
-
             try
             {
                 var result = new GameObject("TryEverything.StatusMessage", typeof(RectTransform));
-                result.transform.position = new Vector3(0.45f, 2.1f, 2.1f);
+                result.transform.position = new Vector3(0.15f, 2.4f, 2.2f);
                 result.transform.eulerAngles = default(Vector3);
                 result.transform.localScale = new Vector3(0.01f, 0.01f, 0.01f);
 
